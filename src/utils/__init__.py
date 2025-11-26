@@ -1,11 +1,20 @@
-from self_healing.src.utils.json_fommatter import JsonFormatter
-from self_healing.src.utils.prompt_loader import PromptLoader, load_prompts
-from self_healing.src.utils.mcp_loader import load_mcp_server_tools
+# Lazy imports to avoid circular dependency issues
+def __getattr__(name):
+    if name == "JsonFormatter":
+        from .json_fommatter import JsonFormatter
+        return JsonFormatter
+    elif name == "PromptLoader":
+        from .prompt_loader import PromptLoader
+        return PromptLoader
+    elif name == "load_prompts":
+        from .prompt_loader import load_prompts
+        return load_prompts
+    else:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
     "JsonFormatter",
     "PromptLoader",
     "load_prompts",
-    "load_mcp_server_tools",
 ]
 

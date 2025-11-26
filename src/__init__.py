@@ -6,25 +6,31 @@ for automated test suites. It includes agents for planning, web automation,
 and code generation, along with utilities for MCP server management and prompt handling.
 """
 
-from self_healing.src.types import Todo, AgentState
-from self_healing.src.agents import BaseAgent, PlanningAgent, WebAgent, CodingAgent
-from self_healing.src.utils.mcp_loader import load_mcp_server_tools
-from self_healing.src.utils.prompt_loader import load_prompts, PromptLoader
-from self_healing.src.utils.json_fommatter import JsonFormatter
+# Lazy imports to avoid circular dependency issues
+def __getattr__(name):
+    if name == "load_prompts":
+        from .utils.prompt_loader import load_prompts
+        return load_prompts
+    elif name == "PromptLoader":
+        from .utils.prompt_loader import PromptLoader
+        return PromptLoader
+    elif name == "JsonFormatter":
+        from .utils.json_fommatter import JsonFormatter
+        return JsonFormatter
+    elif name == "TextFileLoader":
+        from .utils.file_loader import TextFileLoader
+        return TextFileLoader
+    elif name == "PlaywrightCodeExtractor":
+        from .utils.playwright_extractor import PlaywrightCodeExtractor
+        return PlaywrightCodeExtractor
+    else:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
-    # Types
-    "Todo",
-    "AgentState",
-    # Agents
-    "BaseAgent",
-    "PlanningAgent",
-    "WebAgent",
-    "CodingAgent",
-    # Utils
-    "load_mcp_server_tools",
     "load_prompts",
     "PromptLoader",
     "JsonFormatter",
+    "TextFileLoader",
+    "PlaywrightCodeExtractor",
 ]
 

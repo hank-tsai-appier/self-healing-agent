@@ -1,0 +1,10 @@
+user_prompt:
+  template: |
+    請幫我讀取{test_file_path}的測試檔案，並使用playwright mcp tool 執行測試內容，檔案內容可能會出錯，如果找不到對應selector的element，請幫我找最接近語意的element進行互動
+    如果需要base_url或config資訊可以去找cypress.config.js檔案
+    請一定要建立todo來追蹤任務進度
+    並且在每一個todo後都加上一個fix code的todo，利用snapshot的資訊來修正我的{test_file_path}與其相關的檔案
+    
+    修改準則：
+    1. 請專注在修正selector, contains()等定位資訊的修正
+    2. 請在每一次做完一個step後立即修正code
