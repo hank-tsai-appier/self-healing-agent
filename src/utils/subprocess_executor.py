@@ -2,10 +2,7 @@
 Cypress test execution utilities, including ARIA snapshot extraction.
 """
 
-from __future__ import annotations
-
 import subprocess
-from pathlib import Path
 from typing import Optional, Tuple
 
 

@@ -19,7 +19,7 @@ class ToolCall(NamedTuple):
     description: str = ""  # Optional description text before the tool call
 
 
-class PlaywrightCodeExtractor:
+class ConversationExtractor:
     """
     Extracts and persists Playwright code snippets and todo information from conversation markdown logs.
     """

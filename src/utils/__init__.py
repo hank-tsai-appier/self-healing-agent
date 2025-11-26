@@ -1,7 +1,7 @@
 # Lazy imports to avoid circular dependency issues
 def __getattr__(name):
     if name == "JsonFormatter":
-        from .json_fommatter import JsonFormatter
+        from .conversation_formatter import JsonFormatter
         return JsonFormatter
     elif name == "PromptLoader":
         from .prompt_loader import PromptLoader

@@ -15,14 +15,23 @@ def __getattr__(name):
         from .utils.prompt_loader import PromptLoader
         return PromptLoader
     elif name == "JsonFormatter":
-        from .utils.json_fommatter import JsonFormatter
+        from .utils.conversation_formatter import JsonFormatter
         return JsonFormatter
     elif name == "TextFileLoader":
         from .utils.file_loader import TextFileLoader
         return TextFileLoader
+    elif name == "ConversationExtractor":
+        from .utils.conversation_extractor import ConversationExtractor
+        return ConversationExtractor
     elif name == "PlaywrightCodeExtractor":
-        from .utils.playwright_extractor import PlaywrightCodeExtractor
-        return PlaywrightCodeExtractor
+        from .utils.conversation_extractor import ConversationExtractor
+        return ConversationExtractor
+    elif name == "WebAgentApp":
+        from .agents.web_agent import WebAgentApp
+        return WebAgentApp
+    elif name == "CodingAgentApp":
+        from .agents.coding_agent import CodingAgentApp
+        return CodingAgentApp
     else:
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
@@ -31,6 +40,9 @@ __all__ = [
     "PromptLoader",
     "JsonFormatter",
     "TextFileLoader",
+    "ConversationExtractor",
     "PlaywrightCodeExtractor",
+    "WebAgentApp",
+    "CodingAgentApp",
 ]
 

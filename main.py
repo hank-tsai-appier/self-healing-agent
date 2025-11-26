@@ -86,12 +86,7 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Self-Healing Test Pipeline - Automated test analysis and fixing",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    python self_healing/main.py --test-file-path cypress/e2e/login.cy.js
-    python self_healing/main.py --test-file-path cypress/e2e/navigation.cy.js
-        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
         "--test-file-path",

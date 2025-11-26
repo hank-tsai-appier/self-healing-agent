@@ -15,7 +15,7 @@ import sys
 # Add parent directory to path to import utils
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from self_healing.src.utils.playwright_extractor import PlaywrightCodeExtractor
+from self_healing.src.utils.conversation_extractor import ConversationExtractor
 
 
 def print_section_header(title: str):
@@ -25,7 +25,7 @@ def print_section_header(title: str):
     print("=" * 80)
 
 
-def test_extract_last_todo(extractor: PlaywrightCodeExtractor):
+def test_extract_last_todo(extractor: ConversationExtractor):
     """Test extracting the last todo item."""
     print_section_header("Testing: Extract Last Todo")
     
@@ -33,14 +33,14 @@ def test_extract_last_todo(extractor: PlaywrightCodeExtractor):
     
     if last_todo:
         print(f"\n✅ Found last todo:")
-        PlaywrightCodeExtractor.print_last_todo(last_todo)
+        ConversationExtractor.print_last_todo(last_todo)
     else:
         print("\n⚠️  No todo item found in conversation")
     
     return last_todo
 
 
-def test_extract_last_todo_list(extractor: PlaywrightCodeExtractor):
+def test_extract_last_todo_list(extractor: ConversationExtractor):
     """Test extracting the last complete todo list."""
     print_section_header("Testing: Extract Last Todo List")
     
@@ -48,7 +48,7 @@ def test_extract_last_todo_list(extractor: PlaywrightCodeExtractor):
     
     if last_todo_list:
         print(f"\n✅ Found todo list with {len(last_todo_list.get('todos', []))} items:")
-        PlaywrightCodeExtractor.print_last_todo_list(last_todo_list)
+        ConversationExtractor.print_last_todo_list(last_todo_list)
     else:
         print("\n⚠️  No todo list found in conversation")
         print("This is normal if the conversation doesn't contain Markdown todo lists")
@@ -56,7 +56,7 @@ def test_extract_last_todo_list(extractor: PlaywrightCodeExtractor):
     return last_todo_list
 
 
-def test_extract_tool_calls(extractor: PlaywrightCodeExtractor):
+def test_extract_tool_calls(extractor: ConversationExtractor):
     """Test extracting tool calls with input/output pairs."""
     print_section_header("Testing: Extract Tool Calls")
     
@@ -64,7 +64,7 @@ def test_extract_tool_calls(extractor: PlaywrightCodeExtractor):
     
     if tool_calls:
         print(f"\n✅ Found {len(tool_calls)} tool calls:")
-        PlaywrightCodeExtractor.print_tool_calls(tool_calls)
+        ConversationExtractor.print_tool_calls(tool_calls)
     else:
         print("\n⚠️  No tool calls found in conversation")
     
@@ -152,7 +152,7 @@ def main():
     print(f"Output file: {output_path}")
     
     # Initialize extractor
-    extractor = PlaywrightCodeExtractor(conversation_path)
+    extractor = ConversationExtractor(conversation_path)
     
     # Run tests
     last_todo = test_extract_last_todo(extractor)
