@@ -8,14 +8,24 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Union
 
 
 class ToolCall(NamedTuple):
     """Represents a tool call with both input and output."""
+
     tool_name: str
     input_data: Dict
     playwright_code: str
+    description: str = ""  # Optional description text before the tool call
+
+
+class EditCall(NamedTuple):
+    """Represents an Edit tool call for code modifications."""
+
+    tool_name: str  # Always "Edit"
+    input_data: Dict  # Contains file_path, old_string, new_string
+    output_data: Optional[str] = None  # Optional output information
     description: str = ""  # Optional description text before the tool call
 
 
@@ -29,8 +39,8 @@ class ConversationExtractor:
     # Pattern to find tool calls with both Input and Output
     # This pattern handles cases where there might be multiple outputs (like TodoWrite + Playwright)
     _TOOL_CALL_PATTERN = re.compile(
-        r"#### Tool: ([^\n]+)\n\n\*\*Input:\*\*\n\n```json\n(.*?)\n```\n\n(?:\*\*Output.*?:\*\*\n\n```json\n.*?\n```\n\n)?\*\*Output.*?:\*\*\n\n```\n### Ran Playwright code\n```js\n(.*?)\n```",
-        re.DOTALL
+        r"#### Tool: ([^\n]+)\n\n\*\*Input:\*\*\n\n```json\n(.*?)\n```\n\n(?:\*\*Output.*?:\*\*\n\n```json\n.*?\n```\n\n)?\*\*Output.*?:\*\*\n\n```\n### Ran Playwright code\n```js\n(.*?)\n```",  # noqa: E501
+        re.DOTALL,
     )
 
     def __init__(self, conversation_path: Path):
@@ -42,9 +52,7 @@ class ConversationExtractor:
         This method extracts only the code snippets without input context.
         """
         if not self.conversation_path.exists():
-            raise FileNotFoundError(
-                f"Conversation file not found: {self.conversation_path}"
-            )
+            raise FileNotFoundError(f"Conversation file not found: {self.conversation_path}")
 
         text = self.conversation_path.read_text(encoding="utf-8")
         matches = self._PATTERN.findall(text)
@@ -57,9 +65,7 @@ class ConversationExtractor:
         Also extracts the description text that appears before each tool call.
         """
         if not self.conversation_path.exists():
-            raise FileNotFoundError(
-                f"Conversation file not found: {self.conversation_path}"
-            )
+            raise FileNotFoundError(f"Conversation file not found: {self.conversation_path}")
 
         text = self.conversation_path.read_text(encoding="utf-8")
 
@@ -70,16 +76,16 @@ class ConversationExtractor:
             tool_positions.append(match.start())
 
         tool_calls = []
-        
+
         for i, pos in enumerate(tool_positions):
             # Determine the end position of this section
             if i + 1 < len(tool_positions):
                 section_end = tool_positions[i + 1]
             else:
                 section_end = len(text)
-            
+
             section = text[pos:section_end]
-            
+
             # Extract tool name
             tool_name_match = re.search(r"#### Tool: ([^\n]+)", section)
             if not tool_name_match:
@@ -108,12 +114,12 @@ class ConversationExtractor:
                 prev_section_end = tool_positions[i - 1]
                 # Find the last "```" before current position (end of previous output)
                 text_before = text[prev_section_end:pos]
-                
+
                 # Find the last occurrence of "```" which marks the end of previous output
                 last_code_block = text_before.rfind("```")
                 if last_code_block != -1:
                     # Get text after the last code block and before current tool
-                    potential_desc = text_before[last_code_block + 3:].strip()
+                    potential_desc = text_before[last_code_block + 3 :].strip()
                     # Clean up the description (remove extra newlines)
                     description = potential_desc.strip()
             else:
@@ -125,17 +131,196 @@ class ConversationExtractor:
             # Parse input JSON
             try:
                 input_data = json.loads(input_json)
-                tool_calls.append(ToolCall(
-                    tool_name=tool_name,
-                    input_data=input_data,
-                    playwright_code=playwright_code,
-                    description=description
-                ))
+                tool_calls.append(
+                    ToolCall(
+                        tool_name=tool_name,
+                        input_data=input_data,
+                        playwright_code=playwright_code,
+                        description=description,
+                    )
+                )
             except json.JSONDecodeError as e:
                 print(f"Error parsing input JSON for tool {tool_name}: {e}")
                 continue
 
         return tool_calls
+
+    def extract_edit_calls(self) -> List[EditCall]:
+        """
+        Extract Edit tool calls from the conversation.
+        Returns a list of EditCall objects containing file_path, old_string, and new_string.
+        """
+        if not self.conversation_path.exists():
+            raise FileNotFoundError(f"Conversation file not found: {self.conversation_path}")
+
+        text = self.conversation_path.read_text(encoding="utf-8")
+
+        # Find all positions of "#### Tool:"
+        tool_positions = []
+        for match in re.finditer(r"#### Tool:", text):
+            tool_positions.append(match.start())
+
+        edit_calls = []
+
+        for i, pos in enumerate(tool_positions):
+            # Determine the end position of this section
+            if i + 1 < len(tool_positions):
+                section_end = tool_positions[i + 1]
+            else:
+                section_end = len(text)
+
+            section = text[pos:section_end]
+
+            # Extract tool name
+            tool_name_match = re.search(r"#### Tool: ([^\n]+)", section)
+            if not tool_name_match:
+                continue
+
+            tool_name = tool_name_match.group(1).strip()
+
+            # Only process Edit tool calls
+            if tool_name != "Edit":
+                continue
+
+            # Extract input JSON
+            input_match = re.search(r"\*\*Input:\*\*\n\n```json\n(.*?)\n```", section, re.DOTALL)
+            if not input_match:
+                continue
+
+            input_json = input_match.group(1).strip()
+
+            # Extract output (optional)
+            output_match = re.search(r"\*\*Output.*?:\*\*\n\n```(?:json)?\n(.*?)\n```", section, re.DOTALL)
+            output_data = output_match.group(1).strip() if output_match else None
+
+            # Extract description: text before "#### Tool:" but after the previous section
+            description = ""
+            if i > 0:
+                # Get text between previous section's end and current tool call
+                prev_section_end = tool_positions[i - 1]
+                text_before = text[prev_section_end:pos]
+
+                # Find the last occurrence of "```" which marks the end of previous output
+                last_code_block = text_before.rfind("```")
+                if last_code_block != -1:
+                    potential_desc = text_before[last_code_block + 3 :].strip()
+                    description = potential_desc.strip()
+            else:
+                # For the first tool call, look for text after "### Claude's Response"
+                response_match = re.search(r"### Claude's Response\n\n(.*?)\n#### Tool:", text[:pos], re.DOTALL)
+                if response_match:
+                    description = response_match.group(1).strip()
+
+            # Parse input JSON
+            try:
+                input_data = json.loads(input_json)
+                edit_calls.append(
+                    EditCall(
+                        tool_name=tool_name,
+                        input_data=input_data,
+                        output_data=output_data,
+                        description=description,
+                    )
+                )
+            except json.JSONDecodeError as e:
+                print(f"Error parsing input JSON for Edit tool: {e}")
+                continue
+
+        return edit_calls
+
+    def extract_all_tool_calls(self) -> List[Union[ToolCall, EditCall]]:
+        """
+        Extract all tool calls (both Playwright tool calls and Edit calls) in order.
+        Returns a list of ToolCall and EditCall objects in the order they appear in the conversation.
+        """
+        if not self.conversation_path.exists():
+            raise FileNotFoundError(f"Conversation file not found: {self.conversation_path}")
+
+        text = self.conversation_path.read_text(encoding="utf-8")
+
+        # Find all positions of "#### Tool:"
+        tool_positions = []
+        for match in re.finditer(r"#### Tool:", text):
+            tool_positions.append(match.start())
+
+        all_calls = []
+
+        for i, pos in enumerate(tool_positions):
+            # Determine the end position of this section
+            if i + 1 < len(tool_positions):
+                section_end = tool_positions[i + 1]
+            else:
+                section_end = len(text)
+
+            section = text[pos:section_end]
+
+            # Extract tool name
+            tool_name_match = re.search(r"#### Tool: ([^\n]+)", section)
+            if not tool_name_match:
+                continue
+
+            tool_name = tool_name_match.group(1).strip()
+
+            # Extract input JSON
+            input_match = re.search(r"\*\*Input:\*\*\n\n```json\n(.*?)\n```", section, re.DOTALL)
+            if not input_match:
+                continue
+
+            input_json = input_match.group(1).strip()
+
+            # Extract description
+            description = ""
+            if i > 0:
+                prev_section_end = tool_positions[i - 1]
+                text_before = text[prev_section_end:pos]
+                last_code_block = text_before.rfind("```")
+                if last_code_block != -1:
+                    potential_desc = text_before[last_code_block + 3 :].strip()
+                    description = potential_desc.strip()
+            else:
+                response_match = re.search(r"### Claude's Response\n\n(.*?)\n#### Tool:", text[:pos], re.DOTALL)
+                if response_match:
+                    description = response_match.group(1).strip()
+
+            # Parse input JSON
+            try:
+                input_data = json.loads(input_json)
+            except json.JSONDecodeError as e:
+                print(f"Error parsing input JSON for tool {tool_name}: {e}")
+                continue
+
+            # Check if this is an Edit tool call
+            if tool_name == "Edit":
+                output_match = re.search(
+                    r"\*\*Output.*?:\*\*\n\n```(?:json)?\n(.*?)\n```",
+                    section,
+                    re.DOTALL,
+                )
+                output_data = output_match.group(1).strip() if output_match else None
+
+                all_calls.append(
+                    EditCall(
+                        tool_name=tool_name,
+                        input_data=input_data,
+                        output_data=output_data,
+                        description=description,
+                    )
+                )
+            else:
+                # Check for Playwright code
+                playwright_match = re.search(r"### Ran Playwright code\n```js\n(.*?)\n```", section, re.DOTALL)
+                if playwright_match:
+                    playwright_code = playwright_match.group(1).strip()
+                    all_calls.append(
+                        ToolCall(
+                            tool_name=tool_name,
+                            input_data=input_data,
+                            playwright_code=playwright_code,
+                            description=description,
+                        )
+                    )
+
+        return all_calls
 
     def extract_last_todo(self) -> Optional[Dict]:
         """
@@ -158,9 +343,7 @@ class ConversationExtractor:
             Dict containing the complete todo list with all todos, or None if no todos found.
         """
         if not self.conversation_path.exists():
-            raise FileNotFoundError(
-                f"Conversation file not found: {self.conversation_path}"
-            )
+            raise FileNotFoundError(f"Conversation file not found: {self.conversation_path}")
 
         text = self.conversation_path.read_text(encoding="utf-8")
 
@@ -186,7 +369,7 @@ class ConversationExtractor:
             return None
 
         # Extract the JSON content between the markers
-        json_content = section_text[json_start:json_end + 3]
+        json_content = section_text[json_start : json_end + 3]
         json_lines = json_content.split("\n")
         json_data = "\n".join(json_lines[1:-1])  # Remove ```json and ```
         json_data = json_data.strip()
@@ -202,9 +385,7 @@ class ConversationExtractor:
     @staticmethod
     def save(blocks: List[str], output_path: Path) -> None:
         if not blocks:
-            output_path.write_text(
-                "// No Playwright code blocks found.\n", encoding="utf-8"
-            )
+            output_path.write_text("// No Playwright code blocks found.\n", encoding="utf-8")
             return
 
         header_lines = [
@@ -220,9 +401,7 @@ class ConversationExtractor:
             body_lines.append("")
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(
-            "\n".join(header_lines + body_lines).rstrip() + "\n", encoding="utf-8"
-        )
+        output_path.write_text("\n".join(header_lines + body_lines).rstrip() + "\n", encoding="utf-8")
 
     @staticmethod
     def print_blocks(blocks: List[str]) -> None:
@@ -286,3 +465,68 @@ class ConversationExtractor:
             print("**Playwright Code:**")
             print(f"```javascript\n{tool_call.playwright_code}\n```")
 
+    @staticmethod
+    def print_edit_calls(edit_calls: List[EditCall]) -> None:
+        """
+        Print edit calls in a readable format.
+        """
+        print(f"\n--- Extracted Edit Calls ({len(edit_calls)}) ---")
+        if not edit_calls:
+            print("No Edit tool calls were found in the conversation file.")
+            return
+
+        for idx, edit_call in enumerate(edit_calls, 1):
+            print(f"\n## Edit Call {idx}")
+            if edit_call.description:
+                print("**Description:**")
+                print(edit_call.description)
+            print("**File Path:**", edit_call.input_data.get("file_path", "N/A"))
+            print("\n**Old String:**")
+            print("```")
+            print(edit_call.input_data.get("old_string", "N/A"))
+            print("```")
+            print("\n**New String:**")
+            print("```")
+            print(edit_call.input_data.get("new_string", "N/A"))
+            print("```")
+            if edit_call.output_data:
+                print("\n**Output:**")
+                print(edit_call.output_data)
+
+    @staticmethod
+    def print_all_tool_calls(all_calls: List[Union[ToolCall, EditCall]]) -> None:
+        """
+        Print all tool calls (both Playwright and Edit) in order.
+        """
+        print(f"\n--- All Tool Calls ({len(all_calls)}) ---")
+        if not all_calls:
+            print("No tool calls were found in the conversation file.")
+            return
+
+        for idx, call in enumerate(all_calls, 1):
+            if isinstance(call, EditCall):
+                print(f"\n## Call {idx}: Edit")
+                if call.description:
+                    print("**Description:**")
+                    print(call.description)
+                print("**File Path:**", call.input_data.get("file_path", "N/A"))
+                print("\n**Old String:**")
+                print("```")
+                print(call.input_data.get("old_string", "N/A"))
+                print("```")
+                print("\n**New String:**")
+                print("```")
+                print(call.input_data.get("new_string", "N/A"))
+                print("```")
+                if call.output_data:
+                    print("\n**Output:**")
+                    print(call.output_data)
+            elif isinstance(call, ToolCall):
+                print(f"\n## Call {idx}: {call.tool_name}")
+                if call.description:
+                    print("**Description:**")
+                    print(call.description)
+                print("**Input:**")
+                print(json.dumps(call.input_data, indent=2))
+                print("**Playwright Code:**")
+                print(f"```javascript\n{call.playwright_code}\n```")

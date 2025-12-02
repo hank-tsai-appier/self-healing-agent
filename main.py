@@ -9,21 +9,22 @@ Usage:
     python self_healing/main.py --test-file-path cypress/e2e/login.cy.js
 """
 
+import argparse
+import asyncio
 import os
 import sys
-import asyncio
-import argparse
 import uuid
-import dotenv
 from pathlib import Path
+
+import dotenv
+from self_healing.src.agents.coding_agent import CodingAgent
+from self_healing.src.agents.web_agent import WebAgent
+from self_healing.src.utils.prompt_loader import PromptLoader
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from self_healing.src.agents.web_agent import WebAgentApp
-from self_healing.src.agents.coding_agent import CodingAgentApp
-from self_healing.src.utils.prompt_loader import PromptLoader
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -53,11 +54,11 @@ class SelfHealingPipeline:
         # Stage 1: Run Web Agent to generate conversation logs
         print("STAGE 1: Web Agent - Executing test with Playwright\n")
 
-        web_agent = WebAgentApp(
+        web_agent = WebAgent(
             test_file_path=self.test_file_path,
             prompt_loader=self.prompt_loader,
             workspace_path=self.workspace_path,
-            run_uuid=self.run_uuid
+            run_uuid=self.run_uuid,
         )
 
         await web_agent.run()
@@ -69,7 +70,7 @@ class SelfHealingPipeline:
         # Stage 2: Run Coding Agent to fix the test
         print("STAGE 2: Coding Agent - Fixing test based on conversation logs")
 
-        coding_agent = CodingAgentApp(
+        coding_agent = CodingAgent(
             test_file_path=self.test_file_path,
             task_id=self.run_uuid,
             prompt_loader=self.prompt_loader,
@@ -86,7 +87,7 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Self-Healing Test Pipeline - Automated test analysis and fixing",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--test-file-path",

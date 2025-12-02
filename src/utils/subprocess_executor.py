@@ -46,11 +46,7 @@ class SubprocessExecutor:
                 output += "\n\n" + "=" * 80 + "\n"
                 output += "CYPRESS ARIA SNAPSHOT (Extracted from Test Output)\n"
                 output += "=" * 80 + "\n"
-                snapshot_display = (
-                    aria_snapshot[-30000:]
-                    if len(aria_snapshot) > 30000
-                    else aria_snapshot
-                )
+                snapshot_display = aria_snapshot[-30000:] if len(aria_snapshot) > 30000 else aria_snapshot
                 output += snapshot_display
                 if len(aria_snapshot) > 30000:
                     output += "\n... (truncated, showing last 30000 characters)"
@@ -72,10 +68,7 @@ class SubprocessExecutor:
             return None
 
         content_start = marker_line_end + 1
-        while (
-            content_start < len(output)
-            and output[content_start : content_start + 80] == separator
-        ):
+        while content_start < len(output) and output[content_start : content_start + 80] == separator:
             next_line = output.find("\n", content_start)
             if next_line == -1:
                 return None
@@ -88,4 +81,3 @@ class SubprocessExecutor:
             snapshot = output[content_start:end_idx].strip()
 
         return snapshot or None
-

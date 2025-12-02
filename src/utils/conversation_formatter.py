@@ -7,8 +7,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
-from json_repair import repair_json
-
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -17,6 +15,7 @@ from claude_agent_sdk import (
     ToolUseBlock,
     UserMessage,
 )
+from json_repair import repair_json
 
 
 class ConversationFormatter:
@@ -110,9 +109,7 @@ class ConversationFormatter:
                             lines.append("**Input:**")
                             lines.append("")
                             lines.append("```json")
-                            lines.append(
-                                ConversationFormatter.format_tool_output(block.input)
-                            )
+                            lines.append(ConversationFormatter.format_tool_output(block.input))
                             lines.append("```")
                             lines.append("")
                 elif isinstance(message, UserMessage):
@@ -126,25 +123,17 @@ class ConversationFormatter:
                             output_content = block.content
                             if isinstance(output_content, list) and len(output_content) > 0:
                                 first_item = output_content[0]
-                                if isinstance(first_item, dict) and 'text' in first_item:
+                                if isinstance(first_item, dict) and "text" in first_item:
                                     lines.append("```")
-                                    lines.append(first_item['text'])
+                                    lines.append(first_item["text"])
                                     lines.append("```")
                                 else:
                                     lines.append("```json")
-                                    lines.append(
-                                        ConversationFormatter.format_tool_output(
-                                            output_content
-                                        )
-                                    )
+                                    lines.append(ConversationFormatter.format_tool_output(output_content))
                                     lines.append("```")
                             else:
                                 lines.append("```json")
-                                lines.append(
-                                    ConversationFormatter.format_tool_output(
-                                        output_content
-                                    )
-                                )
+                                lines.append(ConversationFormatter.format_tool_output(output_content))
                                 lines.append("```")
                             lines.append("")
 
@@ -157,9 +146,7 @@ class ConversationFormatter:
                     lines.append(f"**{tool_name} ({tool_id}):**")
                     lines.append("")
                     lines.append("```json")
-                    lines.append(
-                        ConversationFormatter.format_tool_output(output)
-                    )
+                    lines.append(ConversationFormatter.format_tool_output(output))
                     lines.append("```")
                     lines.append("")
 
@@ -174,14 +161,11 @@ class ConversationFormatter:
         output_path: Path,
         show_tool_summary: bool = False,
     ):
-        markdown = self.format_conversation(
-            conversation_history, show_tool_summary=show_tool_summary
-        )
+        markdown = self.format_conversation(conversation_history, show_tool_summary=show_tool_summary)
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(markdown, encoding="utf-8")
         print(f"\nConversation saved to: {output_path.absolute()}")
-
 
 
 class JsonFormatter:
@@ -189,17 +173,17 @@ class JsonFormatter:
     def remove_markdown_markers(content: str) -> str:
         """
         Repairs and cleans JSON content using json-repair library.
-        
+
         This method:
         - Removes markdown code block markers (```json, ```)
         - Fixes missing quotes and commas
         - Handles trailing commas
         - Removes comments
         - Repairs other common JSON formatting issues
-        
+
         Args:
             content: Raw content that may contain JSON with markdown markers or formatting issues
-            
+
         Returns:
             Cleaned and repaired JSON string
         """

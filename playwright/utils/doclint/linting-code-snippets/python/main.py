@@ -1,22 +1,24 @@
 import json
 import sys
+
 import black
+
 
 def check_code_snippet(code_snippet: str):
     try:
         formatted_code = black.format_str(code_snippet, mode=black.FileMode())
     except Exception as e:
         return {
-            'status': 'error',
-            'error': str(e),
+            "status": "error",
+            "error": str(e),
         }
     if formatted_code.strip() == code_snippet.strip():
         return {
-            'status': 'success',
+            "status": "success",
         }
     return {
-        'status': 'updated',
-        'newCode': formatted_code,
+        "status": "updated",
+        "newCode": formatted_code,
     }
 
 

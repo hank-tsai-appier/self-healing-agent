@@ -9,17 +9,17 @@ Usage:
     python test_coding_agent.py --test-file-path cypress/e2e/login.cy.js
 """
 
-import os
-import asyncio
 import argparse
-import dotenv
+import asyncio
+import os
 from pathlib import Path
 
-from self_healing.src.utils.prompt_loader import PromptLoader
-from self_healing.src.utils.conversation_formatter import ConversationFormatter
-from self_healing.src.utils.file_loader import TextFileLoader
-from self_healing.src.utils.subprocess_executor import SubprocessExecutor
+import dotenv
+from self_healing.src.agents.support_models import SUPPORT_MODELS
 from self_healing.src.lib.coding_agent_runner import CodingAgentRunner
+from self_healing.src.utils.file_loader import TextFileLoader
+from self_healing.src.utils.prompt_loader import PromptLoader
+from self_healing.src.utils.subprocess_executor import SubprocessExecutor
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -31,10 +31,37 @@ prompt_loader = PromptLoader()
 MAX_RETRIES = 3
 
 
-class CodingAgentApp:
+class CodingAgent:
     """
     High-level orchestrator managing fix attempts, test execution, and logging.
     """
+
+    @staticmethod
+    def parse_args(args=None):
+        """Parse command line arguments."""
+        parser = argparse.ArgumentParser(
+            description="Coding Agent - Fix tests based on conversation logs",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        parser.add_argument(
+            "--test-file-path",
+            type=str,
+            required=True,
+            help="Path to the test file to fix",
+        )
+        parser.add_argument(
+            "--task-id",
+            type=str,
+            required=True,
+            help="Optional identifier for the current fix task (for logging/metadata only).",
+        )
+        parser.add_argument(
+            "--coding-agent-model",
+            type=str,
+            help=f"Model you want to use. Supported models: {', '.join(SUPPORT_MODELS)}",
+        )
+        return parser.parse_args(args)
+
     def __init__(
         self,
         test_file_path: str,
@@ -42,11 +69,13 @@ class CodingAgentApp:
         prompt_loader: PromptLoader = None,
         workspace_path: str = None,
         max_retries: int = MAX_RETRIES,
+        model: str = "haiku",
     ):
         self.test_file_path = test_file_path
         self.workspace_path = workspace_path or os.getcwd()
         self.task_id = task_id
         self.max_retries = max_retries
+        self.model = model
         code_blocks_path = Path(self.workspace_path) / "self_healing" / "results" / f"code_blocks_{task_id}.txt"
         self.file_loader = TextFileLoader(
             code_blocks_path,
@@ -54,11 +83,6 @@ class CodingAgentApp:
         )
         self.cypress_executor = SubprocessExecutor(self.workspace_path)
         self.prompt_loader = prompt_loader or PromptLoader()
-        self.conversation_formatter = ConversationFormatter(
-            log_title="Coding Agent Conversation Log",
-            test_file_path=self.test_file_path,
-            include_test_results=True,
-        )
 
     async def run(self):
         conversation_content = self.file_loader.read()
@@ -67,51 +91,24 @@ class CodingAgentApp:
             workspace_path=self.workspace_path,
             conversation_content=conversation_content,
             prompt_loader=self.prompt_loader,
+            model=self.model,
         )
 
         # Run all attempts in a single Claude session
-        conversation_history = await fix_runner.run_all_attempts(
+        await fix_runner.run_all_attempts(
             max_retries=self.max_retries,
             cypress_executor=self.cypress_executor,
         )
 
-        # Save conversation log
-        output_path = (
-            Path(self.workspace_path)
-            / "self_healing"
-            / "results"
-            / "coding_agent_conversation.md"
-        )
-        self.conversation_formatter.save(conversation_history, output_path)
-        print("\n" + "=" * 80)
-        print("Coding Agent execution completed!")
-        print("=" * 80)
-
 
 async def main():
-    parser = argparse.ArgumentParser(
-        description="Coding Agent - Fix tests based on conversation logs",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        "--test-file-path",
-        type=str,
-        required=True,
-        help="Path to the test file to fix"
-    )
-    parser.add_argument(
-        "--task-id",
-        type=str,
-        required=True,
-        help="Optional identifier for the current fix task (for logging/metadata only)."
-    )
+    args = CodingAgent.parse_args()
 
-    args = parser.parse_args()
-
-    app = CodingAgentApp(
+    app = CodingAgent(
         test_file_path=args.test_file_path,
         task_id=args.task_id,
         prompt_loader=prompt_loader,
+        model=args.coding_agent_model if args.coding_agent_model else "haiku",
     )
     await app.run()
 
@@ -124,4 +121,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\nError: {e}")
         raise
-

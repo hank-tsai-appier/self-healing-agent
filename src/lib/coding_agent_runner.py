@@ -15,7 +15,7 @@ from claude_agent_sdk import (
     ToolUseBlock,
     UserMessage,
 )
-
+from self_healing.src.utils.conversation_formatter import ConversationFormatter
 from self_healing.src.utils.prompt_loader import PromptLoader
 from self_healing.src.utils.subprocess_executor import SubprocessExecutor
 
@@ -31,20 +31,25 @@ class CodingAgentRunner:
         workspace_path: str,
         conversation_content: str,
         prompt_loader: PromptLoader,
+        model: str = "haiku",
     ):
         self.test_file_path = test_file_path
         self.workspace_path = workspace_path
         self.prompt_loader = prompt_loader
+        self.model = model
         self.conversation_snippet = (
-            conversation_content[-15000:]
-            if len(conversation_content) > 15000
-            else conversation_content
+            conversation_content[-15000:] if len(conversation_content) > 15000 else conversation_content
         )
         self.options = self._build_agent_options()
+        self.conversation_formatter = ConversationFormatter(
+            log_title="Coding Agent Conversation Log",
+            test_file_path=self.test_file_path,
+            include_test_results=True,
+        )
 
     def _build_agent_options(self) -> ClaudeAgentOptions:
         return ClaudeAgentOptions(
-            model="claude-haiku-4-5",
+            model=self.model,
             allowed_tools=[
                 "Read",
                 "Write",
@@ -57,15 +62,13 @@ class CodingAgentRunner:
             cwd=self.workspace_path,
         )
 
-    async def run_all_attempts(
-        self, max_retries: int, cypress_executor: SubprocessExecutor
-    ) -> List[Dict[str, Any]]:
+    async def run_all_attempts(self, max_retries: int, cypress_executor: SubprocessExecutor) -> List[Dict[str, Any]]:
         """
         Run all fix attempts in a single Claude client session.
         This allows Claude to remember previous attempts and learn from them.
         """
         conversation_history: List[Dict[str, Any]] = []
-        
+
         print("\n" + "=" * 80)
         print("Starting Claude Agent Fix Session (Continuous Conversation)")
         print("=" * 80)
@@ -128,9 +131,7 @@ class CodingAgentRunner:
                                     if block.tool_use_id in tool_use_map
                                     else "Unknown"
                                 )
-                                is_error = (
-                                    block.is_error if block.is_error is not None else False
-                                )
+                                is_error = block.is_error if block.is_error is not None else False
                                 icon = "⚠️" if is_error else "✅"
                                 print(f"\n{icon} [Tool Result: {tool_name}]")
 
@@ -169,15 +170,20 @@ class CodingAgentRunner:
         print("Claude Agent Fix Session Completed")
         print("=" * 80)
 
+        # Save conversation log
+        from pathlib import Path
+
+        output_path = Path(self.workspace_path) / "self_healing" / "results" / "coding_agent_conversation.md"
+        self.conversation_formatter.save(conversation_history, output_path)
+        print("\n" + "=" * 80)
+        print("Coding Agent execution completed!")
+        print("=" * 80)
+
         return conversation_history
 
     def _build_retry_prompt(self, attempt: int, previous_test_output: str) -> str:
         """Build a follow-up prompt for retry attempts."""
-        snippet = (
-            previous_test_output[-10000:]
-            if len(previous_test_output) > 10000
-            else previous_test_output
-        )
+        snippet = previous_test_output[-10000:] if len(previous_test_output) > 10000 else previous_test_output
         return f"""
 上一次的修復沒有成功，測試仍然失敗了。
 
